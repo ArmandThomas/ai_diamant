@@ -5,6 +5,13 @@ import torch.optim as optim
 import random
 import matplotlib.pyplot as plt
 
+state_dim = 6
+action_dim = 2
+epsilon_start = 1.0
+epsilon_end = 0.01
+epsilon_decay = 0.995
+BATCH_SIZE = 32
+
 # Game Environment
 class DiamantGame:
     def __init__(self):
@@ -140,6 +147,7 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
             action = agent.select_action(current_state, epsilon)
             _, reward, done = game.play_turn(action)
             next_state = game.get_state()
+            print('current_state', current_state)
             agent.memory.append((current_state, action, next_state, reward, done))
             agent.optimize_model()
 
@@ -155,23 +163,22 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
 
         epsilon = max(epsilon_end, epsilon_decay * epsilon)
 
-    return rewards, mean_rewards
+    return rewards, mean_rewards, agent
+
+def start():
 
 
-# Hyperparameters
-state_dim = 6
-action_dim = 2
-epsilon_start = 1.0
-epsilon_end = 0.01
-epsilon_decay = 0.995
-BATCH_SIZE = 32
+    # Start Training
+    rewards, mean_rewards, trained_agent = train_agent(10000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
 
-# Start Training
-rewards, mean_rewards = train_agent(100000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
+    torch.save(trained_agent.model, 'diamant_model.pth')
 
-# Plotting
-plt.plot(range(100, 100001, 100), mean_rewards)
-plt.xlabel('Episodes')
-plt.ylabel('Mean Reward')
-plt.title('Mean Reward every 100 Episodes')
-plt.show()
+    # Plotting
+    plt.plot(range(100, 10001, 100), mean_rewards)
+    plt.xlabel('Episodes')
+    plt.ylabel('Mean Reward')
+    plt.title('Mean Reward every 100 Episodes')
+    plt.show()
+
+
+#start()

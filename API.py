@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import torch
-from script import DQN
+from script_new import load_model
 
 app = FastAPI()
 
@@ -11,11 +11,11 @@ class State(BaseModel):
 
 
 # Load the model (adjust the path as necessary)
-model = torch.load('diamant_model.pth')
+model = load_model()
 model.eval()  # Set the model to evaluation mode
 
 @app.post("/predict/")
-async def predict(state_model : State):
+async def predict(state_model: State):
 
     def load_data():
         array = [state_model.diamonds_collected]
@@ -44,7 +44,7 @@ async def predict(state_model : State):
     state = load_data()
 
     # Validate the state length
-    expected_state_length = 6
+    expected_state_length = 36
     if len(state) != expected_state_length:
         raise HTTPException(status_code=400, detail=f"State must have {expected_state_length} elements.")
 

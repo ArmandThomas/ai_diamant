@@ -1,4 +1,4 @@
-import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
@@ -12,6 +12,11 @@ epsilon_start = 1.0
 epsilon_end = 0.01
 epsilon_decay = 0.995
 BATCH_SIZE = 32
+
+def load_model():
+    model = torch.load('diamant_model.pth')
+    model.eval()  # Set the model to evaluation mode
+    return model
 
 # Game Environment
 class DiamantGame:
@@ -184,14 +189,14 @@ class DiamantGame:
         if action == 1:
             self.is_game_over = True
             if self.diamonds_collected == 0:
-                reward = -5
+                reward = -15
             elif self.diamonds_collected < 4:
                 reward = -2
             else:
-                reward = self.diamonds_collected * 2  # Reward for leaving safely
+                reward = self.diamonds_collected   # Reward for leaving safely
             return self.diamonds_collected, reward, self.is_game_over
 
-        reward = 0
+        reward = 10
         card = self.draw_card()
         self.cards_played.append(card)
 
@@ -211,6 +216,7 @@ class DiamantGame:
             if dangerAlreadyExist:
                 self.is_game_over = True
                 self.diamonds_collected = -5
+                reward = -15
 
         return self.diamonds_collected, reward, self.is_game_over
 
@@ -239,6 +245,7 @@ class DiamantGame:
         return state
 
 # Neural Network for Q-Learning
+
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -301,23 +308,27 @@ class DQNAgent:
         self.optimizer.step()
 
 def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay):
-
     game = DiamantGame()
     agent = DQNAgent(state_dim, action_dim)
     epsilon = epsilon_start
 
     rewards = []
+    risk_taken = []  # Ajout pour suivre le facteur de risque
     nbr_games = 0
 
     for episode in range(episodes):
+        print("Episode " + str(episode) + " sur " + str(episodes))
         game.reset()
         current_state = game.get_state()
         total_reward = 0
+        risk_count = 0  # Compteur pour les décisions risquées
 
         while not game.is_game_over:
             action = agent.select_action(current_state, epsilon)
             _, reward, done = game.play_turn(action)
             next_state = game.get_state()
+            if action == 0:  # Si l'IA choisit de continuer
+                risk_count += 1  # Incrémenter le compteur de risque
             if action == 1:
                 done = True
             agent.memory.append((current_state, action, next_state, reward, done))
@@ -327,25 +338,42 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
             total_reward += next_state[0]
 
         rewards.append(total_reward)
+        risk_taken.append(risk_count)  # Ajouter le compteur de risque à la liste
         nbr_games += 1
-        print(f"Episode: {episode + 1}, Reward: {total_reward}")
 
         epsilon = max(epsilon_end, epsilon_decay * epsilon)
 
-    return rewards, agent
+    return rewards, risk_taken, agent
 
 def start():
+    rewards, risk_taken, trained_agent = train_agent(5000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
 
-    rewards, trained_agent = train_agent(100000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
-
+    # Sauvegarde du modèle
     torch.save(trained_agent.model, 'diamant_model.pth')
 
-    # make a percentage of the rewards and show the upgradings
+    # Traitement des récompenses pour affichage
     rewards = pd.Series(rewards)
     rewards = rewards.rolling(100, min_periods=1).mean()
+
+    # Traitement du facteur de risque pour affichage
+    risk_taken = pd.Series(risk_taken)
+    risk_taken = risk_taken.rolling(100, min_periods=1).mean()
+
+    # Création du graphique
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
     plt.plot(rewards)
+    plt.title('Progression de l\'entraînement')
+    plt.xlabel('Épisodes')
+    plt.ylabel('Nombre de diamants collectés')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(risk_taken)
+    plt.title('Évolution du facteur de risque')
+    plt.xlabel('Épisodes')
+    plt.ylabel('Décisions risquées par épisode')
+
+    # Affichage du graphique
     plt.show()
-
-
 
 start()

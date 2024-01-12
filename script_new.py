@@ -174,8 +174,8 @@ class DiamantGame:
         card = random.choice(self.deck)
         self.deck.remove(card)
         return card
+    
     def play_turn(self, action):
-
 
         reward = 0
 
@@ -183,10 +183,15 @@ class DiamantGame:
 
         if action == 1:
             self.is_game_over = True
-            reward = self.diamonds_collected * 2  # Reward for leaving safely
+            if self.diamonds_collected == 0:
+                reward = -5
+            elif self.diamonds_collected < 4:
+                reward = -2
+            else:
+                reward = self.diamonds_collected * 2  # Reward for leaving safely
             return self.diamonds_collected, reward, self.is_game_over
 
-        reward = 5
+        reward = 0
         card = self.draw_card()
         self.cards_played.append(card)
 
@@ -205,8 +210,7 @@ class DiamantGame:
                         dangerAlreadyExist = True
             if dangerAlreadyExist:
                 self.is_game_over = True
-                self.diamonds_collected = 0
-                reward = -10
+                self.diamonds_collected = -5
 
         return self.diamonds_collected, reward, self.is_game_over
 
@@ -332,7 +336,7 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
 
 def start():
 
-    rewards, trained_agent = train_agent(10000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
+    rewards, trained_agent = train_agent(100000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
 
     torch.save(trained_agent.model, 'diamant_model.pth')
 

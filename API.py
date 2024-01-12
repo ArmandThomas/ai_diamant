@@ -1,7 +1,7 @@
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
 import torch
-from script_new import load_model
+from script import load_model
 
 app = FastAPI()
 

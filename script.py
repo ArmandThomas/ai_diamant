@@ -1,44 +1,185 @@
-import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
 import random
 import matplotlib.pyplot as plt
+import pandas as pd
 
-state_dim = 6
+state_dim = 36
 action_dim = 2
 epsilon_start = 1.0
 epsilon_end = 0.01
 epsilon_decay = 0.995
 BATCH_SIZE = 32
 
+def load_model():
+    model = torch.load('diamant_model.pth')
+    model.eval()  # Set the model to evaluation mode
+    return model
+
 # Game Environment
 class DiamantGame:
     def __init__(self):
         self.reset()
 
-    def reset(self):
+    def reset(self,nbr_joueurs = 3):
         # Initialize/reset the game state
         self.diamonds_collected = 0
-        self.danger_cards_drawn = []
+        self.cards_played = []
         self.is_game_over = False
-        self.deck = self.create_deck()
+        self.deck = [
+            {
+                "type": "Trésor",
+                "value": 3
+            },
+            {
+                "type": "Trésor",
+                "value": 4
+            },
+            {
+                "type": "Trésor",
+                "value": 14
+            },
+            {
+                "type": "Trésor",
+                "value": 13
+            },
+            {
+                "type": "Trésor",
+                "value": 2
+            },
+            {
+                "type": "Trésor",
+                "value": 15
+            },
+            {
+                "type": "Trésor",
+                "value": 17
+            },
+            {
+                "type": "Trésor",
+                "value": 7
+            },
+            {
+                "type": "Trésor",
+                "value": 9
+            },
+            {
+                "type": "Trésor",
+                "value": 1
+            },
+            {
+                "type": "Trésor",
+                "value": 5
+            },
+            {
+                "type": "Trésor",
+                "value": 11
+            },
+            {
+                "type": "Trésor",
+                "value": 11
+            },
+            {
+                "type": "Trésor",
+                "value": 5
+            },
+            {
+                "type": "Trésor",
+                "value": 7
+            },
+            {
+                "type": "Relique",
+                "value": 7
+            },
+            {
+                "type": "Relique",
+                "value": 5
+            },
+            {
+                "type": "Relique",
+                "value": 8
+            },
+            {
+                "type": "Relique",
+                "value": 10
+            },
+            {
+                "type": "Relique",
+                "value": 12
+            },
+            {
+                "type": "Danger",
+                "value": "Araignée"
+            },
+            {
+                "type": "Danger",
+                "value": "Araignée"
+            },
+            {
+                "type": "Danger",
+                "value": "Araignée"
+            },
+            {
+                "type": "Danger",
+                "value": "Lave"
+            },
+            {
+                "type": "Danger",
+                "value": "Lave"
+            },
+            {
+                "type": "Danger",
+                "value": "Lave"
+            },
+            {
+                "type": "Danger",
+                "value": "Pierre"
+            },
+            {
+                "type": "Danger",
+                "value": "Pierre"
+            },
+            {
+                "type": "Danger",
+                "value": "Pierre"
+            },
+            {
+                "type": "Danger",
+                "value": "Serpent"
+            },
+            {
+                "type": "Danger",
+                "value": "Serpent"
+            },
+            {
+                "type": "Danger",
+                "value": "Serpent"
+            },
+            {
+                "type": "Danger",
+                "value": "Pique"
+            },
+            {
+                "type": "Danger",
+                "value": "Pique"
+            },
+            {
+                "type": "Danger",
+                "value": "Pique"
+            },
+        ]
+        self.nbr_joueurs = nbr_joueurs
+        self.last_action = 0
 
-    def create_deck(self):
-        # Create a deck of cards (15 diamond cards, 15 danger cards)
-        diamond_cards = [(diamonds, 'Trésor') for diamonds in range(1, 16)]
-        danger_types = ['Araignée', 'Pierre', 'Lave', 'Serpent', 'Pique']
-        danger_cards = [(danger, 'Danger') for danger in danger_types for _ in range(3)]
-        deck = diamond_cards + danger_cards
-        np.random.shuffle(deck)
-        return deck
 
     def draw_card(self):
-        # Draw a card from the deck
-        if not self.deck:
-            return None
-        return self.deck.pop()
-
+        # Draw a random card from the deck
+        card = random.choice(self.deck)
+        self.deck.remove(card)
+        return card
+    
     def play_turn(self, action):
 
         reward = 0
@@ -48,14 +189,14 @@ class DiamantGame:
         if action == 1:
             self.is_game_over = True
             if self.diamonds_collected == 0:
-                reward = -5
+                reward = -15
             elif self.diamonds_collected < 4:
                 reward = -2
             else:
-                reward = self.diamonds_collected * 2  # Reward for leaving safely
+                reward = self.diamonds_collected   # Reward for leaving safely
             return self.diamonds_collected, reward, self.is_game_over
 
-        reward = 0
+        reward = 10
         card = self.draw_card()
         self.cards_played.append(card)
 
@@ -75,15 +216,36 @@ class DiamantGame:
             if dangerAlreadyExist:
                 self.is_game_over = True
                 self.diamonds_collected = -5
+                reward = -15
 
         return self.diamonds_collected, reward, self.is_game_over
 
     def get_state(self):
-        # Convert the game state into a numerical vector
-        state = [self.diamonds_collected] + [int(danger in self.danger_cards_drawn) for danger in ['Araignée', 'Pierre', 'Lave', 'Serpent', 'Pique']]
+        state = [0 if self.last_action == 0 else self.diamonds_collected]
+        for card in self.cards_played:
+            if card['type'] == 'Trésor':
+                state.append(1)
+            elif card['type'] == 'Relique':
+                state.append(7)
+            elif card['type'] == 'Danger':
+                if card['value'] == 'Araignée':
+                    state.append(2)
+                elif card['value'] == 'Lave':
+                    state.append(3)
+                elif card['value'] == 'Pierre':
+                    state.append(4)
+                elif card['value'] == 'Serpent':
+                    state.append(5)
+                elif card['value'] == 'Pique':
+                    state.append(6)
+
+        for cards_not_played in range(35 - len(self.cards_played)):
+            state.append(0)
+
         return state
 
 # Neural Network for Q-Learning
+
 class DQN(nn.Module):
     def __init__(self, input_dim, output_dim):
         super(DQN, self).__init__()
@@ -105,7 +267,7 @@ class DQNAgent:
         self.optimizer = optim.Adam(self.model.parameters(), lr=0.001)
         self.memory = []  # Memory for experience replay
         self.gamma = 0.99  # Discount factor
-            
+
     def select_action(self, state, epsilon):
         if random.random() < epsilon:
             return random.choice([0, 1])  # Randomly choose 'continue' or 'leave'
@@ -145,57 +307,73 @@ class DQNAgent:
         loss.backward()
         self.optimizer.step()
 
-
-# Training Loop
 def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay):
     game = DiamantGame()
     agent = DQNAgent(state_dim, action_dim)
     epsilon = epsilon_start
 
     rewards = []
-    mean_rewards = []
+    risk_taken = []  # Ajout pour suivre le facteur de risque
+    nbr_games = 0
 
     for episode in range(episodes):
+        print("Episode " + str(episode) + " sur " + str(episodes))
         game.reset()
         current_state = game.get_state()
         total_reward = 0
+        risk_count = 0  # Compteur pour les décisions risquées
 
         while not game.is_game_over:
             action = agent.select_action(current_state, epsilon)
             _, reward, done = game.play_turn(action)
             next_state = game.get_state()
-            print('current_state', current_state)
+            if action == 0:  # Si l'IA choisit de continuer
+                risk_count += 1  # Incrémenter le compteur de risque
+            if action == 1:
+                done = True
             agent.memory.append((current_state, action, next_state, reward, done))
             agent.optimize_model()
 
             current_state = next_state
-            total_reward += reward
+            total_reward += next_state[0]
 
         rewards.append(total_reward)
-
-        if (episode + 1) % 100 == 0:
-            mean_reward = np.mean(rewards[-100:])
-            mean_rewards.append(mean_reward)
-            print(f"Episodes {episode-99}-{episode}: Mean Reward: {mean_reward}")
+        risk_taken.append(risk_count)  # Ajouter le compteur de risque à la liste
+        nbr_games += 1
 
         epsilon = max(epsilon_end, epsilon_decay * epsilon)
 
-    return rewards, mean_rewards, agent
+    return rewards, risk_taken, agent
 
 def start():
+    rewards, risk_taken, trained_agent = train_agent(5000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
 
-
-    # Start Training
-    rewards, mean_rewards, trained_agent = train_agent(10000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
-
+    # Sauvegarde du modèle
     torch.save(trained_agent.model, 'diamant_model.pth')
 
-    # Plotting
-    plt.plot(range(100, 10001, 100), mean_rewards)
-    plt.xlabel('Episodes')
-    plt.ylabel('Mean Reward')
-    plt.title('Mean Reward every 100 Episodes')
+    # Traitement des récompenses pour affichage
+    rewards = pd.Series(rewards)
+    rewards = rewards.rolling(100, min_periods=1).mean()
+
+    # Traitement du facteur de risque pour affichage
+    risk_taken = pd.Series(risk_taken)
+    risk_taken = risk_taken.rolling(100, min_periods=1).mean()
+
+    # Création du graphique
+    plt.figure(figsize=(12, 6))
+    plt.subplot(1, 2, 1)
+    plt.plot(rewards)
+    plt.title('Progression de l\'entraînement')
+    plt.xlabel('Épisodes')
+    plt.ylabel('Nombre de diamants collectés')
+
+    plt.subplot(1, 2, 2)
+    plt.plot(risk_taken)
+    plt.title('Évolution du facteur de risque')
+    plt.xlabel('Épisodes')
+    plt.ylabel('Décisions risquées par épisode')
+
+    # Affichage du graphique
     plt.show()
 
-
-#start()
+start()

@@ -182,29 +182,36 @@ class DiamantGame:
     
     def play_turn(self, action):
 
-        reward = 0
+        card = self.draw_card()
 
+        self.cards_played.append(card)
         self.last_action = action
+
+        nbr_danger_drawn = 0
+
+        for card in self.cards_played:
+            if card['type'] == 'Danger':
+                nbr_danger_drawn += 1
 
         if action == 1:
             self.is_game_over = True
-            if self.diamonds_collected == 0:
-                reward = -15
-            elif self.diamonds_collected < 4:
-                reward = -2
+            if self.diamonds_collected == 0 or nbr_danger_drawn == 0:
+                reward = 0
+            elif nbr_danger_drawn < 3 and self.diamonds_collected < 5:
+                reward = 1
             else:
-                reward = self.diamonds_collected   # Reward for leaving safely
+                reward = 3
+            # Reward for leaving safely
             return self.diamonds_collected, reward, self.is_game_over
 
-        reward = 10
-        card = self.draw_card()
-        self.cards_played.append(card)
+        reward = 2
 
         card_value = card['value']
         card_type = card['type']
 
         if card_type == 'Trésor':
-            self.diamonds_collected += card_value  # Reward for collecting diamonds
+            self.diamonds_collected += card_value
+            # Reward for collecting diamonds
         elif card_type == 'Relique':
             self.diamonds_collected += 1
         elif card_type == 'Danger':
@@ -215,8 +222,8 @@ class DiamantGame:
                         dangerAlreadyExist = True
             if dangerAlreadyExist:
                 self.is_game_over = True
-                self.diamonds_collected = -5
-                reward = -15
+                self.diamonds_collected = 0
+                reward = 0
 
         return self.diamonds_collected, reward, self.is_game_over
 
@@ -315,12 +322,12 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
     rewards = []
     risk_taken = []  # Ajout pour suivre le facteur de risque
     nbr_games = 0
+    total_reward = 0
 
     for episode in range(episodes):
         print("Episode " + str(episode) + " sur " + str(episodes))
         game.reset()
         current_state = game.get_state()
-        total_reward = 0
         risk_count = 0  # Compteur pour les décisions risquées
 
         while not game.is_game_over:
@@ -335,18 +342,23 @@ def train_agent(episodes, state_dim, action_dim, epsilon_start, epsilon_end, eps
             agent.optimize_model()
 
             current_state = next_state
-            total_reward += next_state[0]
+            total_reward += reward
 
-        rewards.append(total_reward)
-        risk_taken.append(risk_count)  # Ajouter le compteur de risque à la liste
-        nbr_games += 1
+        risk_taken.append(risk_count)  # Ajout pour suivre le facteur de risque
+
+        # Each 100 episodes save rewards and risk_taken
+        if episode % 100 == 0 and episode != 0:
+            rewards.append(total_reward / 100)
+            total_reward = 0
+            nbr_games += 1
 
         epsilon = max(epsilon_end, epsilon_decay * epsilon)
+
 
     return rewards, risk_taken, agent
 
 def start():
-    rewards, risk_taken, trained_agent = train_agent(5000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
+    rewards, risk_taken, trained_agent = train_agent(10000, state_dim, action_dim, epsilon_start, epsilon_end, epsilon_decay)
 
     # Sauvegarde du modèle
     torch.save(trained_agent.model, 'diamant_model.pth')
@@ -363,7 +375,7 @@ def start():
     plt.figure(figsize=(12, 6))
     plt.subplot(1, 2, 1)
     plt.plot(rewards)
-    plt.title('Progression de l\'entraînement')
+    plt.title('Rewards moyens par épisode')
     plt.xlabel('Épisodes')
     plt.ylabel('Nombre de diamants collectés')
 

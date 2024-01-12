@@ -40,27 +40,44 @@ class DiamantGame:
         return self.deck.pop()
 
     def play_turn(self, action):
-        # Updated method to include reward calculation
+
         reward = 0
+
+        self.last_action = action
+
         if action == 1:
             self.is_game_over = True
-            reward = self.diamonds_collected  # Reward for leaving safely
+            if self.diamonds_collected == 0:
+                reward = -5
+            elif self.diamonds_collected < 4:
+                reward = -2
+            else:
+                reward = self.diamonds_collected * 2  # Reward for leaving safely
             return self.diamonds_collected, reward, self.is_game_over
 
+        reward = 0
         card = self.draw_card()
+        self.cards_played.append(card)
 
-        card_value, card_type = card
+        card_value = card['value']
+        card_type = card['type']
+
         if card_type == 'Trésor':
-            self.diamonds_collected += card_value # Reward for collecting diamonds
+            self.diamonds_collected += card_value  # Reward for collecting diamonds
+        elif card_type == 'Relique':
+            self.diamonds_collected += 1
         elif card_type == 'Danger':
-            if card_value in self.danger_cards_drawn:
+            dangerAlreadyExist = False
+            for card in self.cards_played:
+                if card['type'] == 'Danger':
+                    if card['value'] == card_value:
+                        dangerAlreadyExist = True
+            if dangerAlreadyExist:
                 self.is_game_over = True
-                self.diamonds_collected = 0
-            else:
-                self.danger_cards_drawn.append(card_value)
+                self.diamonds_collected = -5
 
         return self.diamonds_collected, reward, self.is_game_over
-    
+
     def get_state(self):
         # Convert the game state into a numerical vector
         state = [self.diamonds_collected] + [int(danger in self.danger_cards_drawn) for danger in ['Araignée', 'Pierre', 'Lave', 'Serpent', 'Pique']]

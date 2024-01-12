@@ -17,10 +17,29 @@ model.eval()  # Set the model to evaluation mode
 @app.post("/predict/")
 async def predict(state_model : State):
 
-    dangers_drawed = [card['value'] for card in state_model.played_cards if card['type'] == 'Danger']
-
     def load_data():
-        return [state_model.diamonds_collected] + [int(danger in dangers_drawed) for danger in ['Araignée', 'Pierre', 'Lave', 'Serpent', 'Pique']]
+        array = [state_model.diamonds_collected]
+        for card in state_model.played_cards:
+            if card['type'] == 'Trésor':
+                array.append(1)
+            elif card['type'] == 'Relique':
+                array.append(7)
+            elif card['type'] == 'Danger':
+                if card['value'] == 'Araignée':
+                    array.append(2)
+                elif card['value'] == 'Lave':
+                    array.append(3)
+                elif card['value'] == 'Pierre':
+                    array.append(4)
+                elif card['value'] == 'Serpent':
+                    array.append(5)
+                elif card['value'] == 'Pique':
+                    array.append(6)
+
+        for cards_not_played in range(35 - len(state_model.played_cards)):
+            array.append(0)
+
+        return array
 
     state = load_data()
 
